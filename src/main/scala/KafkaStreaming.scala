@@ -30,14 +30,19 @@ class KafkaStreaming {
     LocationStrategies.PreferBrokers,
     Subscribe[String, String](topics, kafkaParams)
   )
-  val keyStream = stream.map(record => record.key())
-  val valueStream = stream.map(record => record.value())
-  keyStream.print()
-  valueStream.print()
+  val nodeManagerLog = stream.filter(filterNM)
+  nodeManagerLog.print(5)
 
   def start() {
     ssc.start()
     ssc.awaitTermination()
+  }
+
+  def filterNM (consumerRecord: ConsumerRecord[String, String]): Boolean = {
+    if(consumerRecord.key().toString.equals("nodemanager")) {
+      return true
+    }
+    return false
   }
 //  val numInputDStream = 8
 //  val kafkaDStream = (1 to numInputDStream).map { _ => KafkaUtils.createDirectStream(
