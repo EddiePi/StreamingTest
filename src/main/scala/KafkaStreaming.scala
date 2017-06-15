@@ -10,10 +10,13 @@ import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
 /**
   * Created by Eddie on 2017/5/31.
   */
-class KafkaStreaming {
+class KafkaStreaming extends Serializable {
   PropertyConfigurator.configure("/home/eddie/StreamingTest/log4j-streaming.properties")
+  @transient
   val conf = new SparkConf().setAppName("Test")
+  @transient
   val sc = new SparkContext(conf)
+  @transient
   val ssc: StreamingContext = new StreamingContext(sc, Seconds(1))
 
   val topics = Array("log")
@@ -29,8 +32,8 @@ class KafkaStreaming {
     ssc,
     LocationStrategies.PreferBrokers,
     Subscribe[String, String](topics, kafkaParams)
-  )
-  val nodeManagerLog = stream.filter(filterNM)
+  ).map(record => (record.key().toString, record.value().toString))
+  val nodeManagerLog = stream.filter(record => record._1.equals("nodemanager"))
   nodeManagerLog.print(5)
 
   def start() {
@@ -38,12 +41,7 @@ class KafkaStreaming {
     ssc.awaitTermination()
   }
 
-  def filterNM (consumerRecord: ConsumerRecord[String, String]): Boolean = {
-    if(consumerRecord.key().toString.equals("nodemanager")) {
-      return true
-    }
-    return false
-  }
+
 //  val numInputDStream = 8
 //  val kafkaDStream = (1 to numInputDStream).map { _ => KafkaUtils.createDirectStream(
 //    scc,
@@ -55,3 +53,4 @@ class KafkaStreaming {
 //      record =>
 //        (print("key: " + record.key), print("value:" + record.value))))
 }
+
