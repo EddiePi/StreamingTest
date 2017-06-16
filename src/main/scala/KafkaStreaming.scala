@@ -1,10 +1,11 @@
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.fs.{FileSystem, FileUtil, Path}
 import org.apache.spark._
 import org.apache.spark.streaming._
-import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.serialization.StringDeserializer
 import org.apache.log4j.PropertyConfigurator
+import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.kafka010._
-import org.apache.spark.streaming.kafka010.LocationStrategies.PreferConsistent
 import org.apache.spark.streaming.kafka010.ConsumerStrategies.Subscribe
 
 /**
@@ -34,11 +35,33 @@ class KafkaStreaming extends Serializable {
     Subscribe[String, String](topics, kafkaParams)
   ).map(record => (record.key().toString, record.value().toString))
   val nodeManagerLog = stream.filter(record => record._1.equals("nodemanager"))
+  nodeManagerLog.foreachRDD(rdd =>
+    saveAsTextFileAndMerge(
+      "hdfs://disco-0011:9000",
+      "trace-part",
+      rdd)
+  )
   nodeManagerLog.print(5)
 
   def start() {
     ssc.start()
     ssc.awaitTermination()
+  }
+
+  def saveAsTextFileAndMerge[T](hdfsServer: String, fileName: String, rdd: RDD[T]) = {
+    val sourceFile = hdfsServer + "/trace/each"
+    val dstPath = hdfsServer + "/trace/whole"
+    merge(sourceFile, dstPath, fileName)
+  }
+
+  def merge(srcPath: String, dstPath: String, fileName: String): Unit = {
+    val hadoopConfig = new Configuration()
+    val hdfs = FileSystem.get(hadoopConfig)
+    val destinationPath = new Path(dstPath)
+    if (!hdfs.exists(destinationPath)) {
+      hdfs.mkdirs(destinationPath)
+    }
+    FileUtil.copyMerge(hdfs, new Path(srcPath), hdfs, new Path(dstPath + "/" + fileName), true, hadoopConfig, null)
   }
 
 
