@@ -39,7 +39,7 @@ class KafkaStreaming extends Serializable {
   nodeManagerLog.print(5)
   containerMetric.print(5)
   nodeManagerLog.saveAsTextFiles("/trace/nodemanager")
-  containerMetric.saveAsTextFiles("trace/containerMetrics")
+  containerMetric.saveAsTextFiles("/trace/containerMetrics")
 
   def start() {
     ssc.start()
