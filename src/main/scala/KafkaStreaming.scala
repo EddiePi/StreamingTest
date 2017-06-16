@@ -20,7 +20,7 @@ class KafkaStreaming extends Serializable {
   @transient
   val ssc: StreamingContext = new StreamingContext(sc, Seconds(1))
 
-  val topics = Array("log")
+  val topics = Array("log", "trace")
   val kafkaParams: Map[String, Object] = Map(
     "bootstrap.servers" -> "disco-0011:9092,disco-0012:9092,disco-0013:9092",
     "value.deserializer" -> classOf[StringDeserializer],
@@ -34,37 +34,17 @@ class KafkaStreaming extends Serializable {
     LocationStrategies.PreferBrokers,
     Subscribe[String, String](topics, kafkaParams)
   ).map(record => (record.key().toString, record.value().toString))
-  val nodeManagerLog = stream.filter(record => record._1.equals("nodemanager"))
-  nodeManagerLog.foreachRDD(rdd =>
-    saveAsTextFileAndMerge(
-      "hdfs://disco-0011:9000",
-      "trace-part",
-      rdd)
-  )
+  val nodeManagerLog = stream.filter(record => record._1.equals("nodemanager-log"))
+  val containerMetric = stream.filter(record => record._1.contains("metric"))
   nodeManagerLog.print(5)
+  containerMetric.print(5)
+  nodeManagerLog.saveAsTextFiles("/trace/nodemanager")
+  containerMetric.saveAsTextFiles("trace/containerMetrics")
 
   def start() {
     ssc.start()
     ssc.awaitTermination()
   }
-
-  def saveAsTextFileAndMerge[T](hdfsServer: String, fileName: String, rdd: RDD[T]) = {
-    val sourceFile = hdfsServer + "/trace/each"
-    val dstPath = hdfsServer + "/trace/whole"
-    merge(sourceFile, dstPath, fileName)
-  }
-
-  def merge(srcPath: String, dstPath: String, fileName: String): Unit = {
-    val hadoopConfig = new Configuration()
-    val hdfs = FileSystem.get(hadoopConfig)
-    val destinationPath = new Path(dstPath)
-    if (!hdfs.exists(destinationPath)) {
-      hdfs.mkdirs(destinationPath)
-    }
-    FileUtil.copyMerge(hdfs, new Path(srcPath), hdfs, new Path(dstPath + "/" + fileName), true, hadoopConfig, null)
-  }
-
-
 //  val numInputDStream = 8
 //  val kafkaDStream = (1 to numInputDStream).map { _ => KafkaUtils.createDirectStream(
 //    scc,
